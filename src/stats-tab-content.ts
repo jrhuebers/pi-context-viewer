@@ -23,6 +23,12 @@ function number(value: unknown): string {
 	return typeof value === "number" ? value.toLocaleString() : "N/A";
 }
 
+function attributionLabel(label: string): string {
+	const width = 28;
+	const compact = label.length > width ? `${label.slice(0, width - 1)}…` : label;
+	return compact.padEnd(width);
+}
+
 export class StatsTabContent implements TabContent {
 	readonly name = "Stats";
 	readonly footerHints = "↑↓ scroll";
@@ -84,10 +90,10 @@ export class StatsTabContent implements TabContent {
 		} else {
 			for (const row of this.stats.inputRows.sort((a, b) => b.tokens - a.tokens)) {
 				const opaque = row.opaque ? " · opaque" : "";
-				lines.push(`    ${row.label.padEnd(22)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} part${row.count === 1 ? "" : "s"}${opaque}`);
+				lines.push(`    ${attributionLabel(row.label)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} part${row.count === 1 ? "" : "s"}${opaque}`);
 			}
 			if (this.stats.unknownInputTokens > 0) {
-				lines.push(`    ${"Unattributed/protocol".padEnd(22)} ${formatTokens(this.stats.unknownInputTokens).padStart(8)}`);
+				lines.push(`    ${attributionLabel("Unattributed/protocol")} ${formatTokens(this.stats.unknownInputTokens).padStart(8)}`);
 			}
 		}
 		if (this.stats.toolResultRows.length > 0) {
@@ -95,7 +101,7 @@ export class StatsTabContent implements TabContent {
 			lines.push(`  ${th.fg("accent", "Tool-result breakdown (top 4; input estimate)")}`);
 			const toolRows = [...this.stats.toolResultRows].sort((a, b) => b.tokens - a.tokens);
 			for (const row of toolRows.slice(0, 4)) {
-				lines.push(`    ${row.label.padEnd(22)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
+				lines.push(`    ${attributionLabel(row.label)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
 			}
 			if (toolRows.length > 4) lines.push(`    ${th.fg("dim", `+ ${toolRows.length - 4} more tool${toolRows.length - 4 === 1 ? "" : "s"} recorded`)}`);
 		}
@@ -104,7 +110,7 @@ export class StatsTabContent implements TabContent {
 			lines.push(`  ${th.fg("accent", "Bash-result breakdown (top 3; input estimate)")}`);
 			const bashRows = [...this.stats.bashCommandRows].sort((a, b) => b.tokens - a.tokens);
 			for (const row of bashRows.slice(0, 3)) {
-				lines.push(`    ${row.label.padEnd(22)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
+				lines.push(`    ${attributionLabel(row.label)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
 			}
 			if (bashRows.length > 3) lines.push(`    ${th.fg("dim", `+ ${bashRows.length - 3} more command${bashRows.length - 3 === 1 ? "" : "s"} recorded`)}`);
 		}
