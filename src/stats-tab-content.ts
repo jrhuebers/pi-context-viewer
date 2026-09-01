@@ -9,6 +9,7 @@ export interface ContextStats {
 	usage?: any;
 	inputRows: AttributionRow[];
 	toolResultRows: AttributionRow[];
+	bashCommandRows: AttributionRow[];
 	unknownInputTokens: number;
 	payloadChars: number;
 }
@@ -97,6 +98,15 @@ export class StatsTabContent implements TabContent {
 				lines.push(`    ${row.label.padEnd(22)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
 			}
 			if (toolRows.length > 4) lines.push(`    ${th.fg("dim", `+ ${toolRows.length - 4} more tool${toolRows.length - 4 === 1 ? "" : "s"} recorded`)}`);
+		}
+		if (this.stats.bashCommandRows.length > 0) {
+			lines.push("");
+			lines.push(`  ${th.fg("accent", "Bash-result breakdown (top 3; input estimate)")}`);
+			const bashRows = [...this.stats.bashCommandRows].sort((a, b) => b.tokens - a.tokens);
+			for (const row of bashRows.slice(0, 3)) {
+				lines.push(`    ${row.label.padEnd(22)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
+			}
+			if (bashRows.length > 3) lines.push(`    ${th.fg("dim", `+ ${bashRows.length - 3} more command${bashRows.length - 3 === 1 ? "" : "s"} recorded`)}`);
 		}
 		lines.push("");
 		if (context) {

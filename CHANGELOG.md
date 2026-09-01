@@ -10,6 +10,7 @@
 - Expand the overlay to the full terminal window.
 - Attribute exact aggregate input usage proportionally across fine-grained categories.
 - Break down estimated tool-result input by correlated tool name, including `read` and `bash`; show the top four tools while retaining all recorded tool data.
+- Show the top three Bash commands by estimated tool-result input.
 
 
 ## [0.21.1] - 2026-08-06

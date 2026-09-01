@@ -19,6 +19,8 @@ export interface PayloadPart {
 	opaque?: boolean;
 	/** Provider tool name, when this part is a correlated tool result. */
 	toolName?: string;
+	/** Original bash command, when this part is a correlated bash result. */
+	toolDetail?: string;
 }
 
 export interface ProviderRequestSnapshot {
@@ -56,24 +58,35 @@ function isSkillPath(path: unknown): boolean {
 	return typeof path === "string" && /(^|\/)\.agents\/skills\/|(^|\/)\.pi\/agent\/.*\/skills\/|(^|\/)skills\/[^/]+\/SKILL\.md$/i.test(path);
 }
 
-function isSkillReadCall(value: any): boolean {
-	if (value?.name !== "read") return false;
-	let args = value.arguments ?? value.input ?? value.args;
+function parseToolArguments(value: any): any {
+	let args = value?.arguments ?? value?.input ?? value?.args;
 	if (typeof args === "string") {
-		try { args = JSON.parse(args); } catch { return false; }
+		try { args = JSON.parse(args); } catch { return undefined; }
 	}
-	return isSkillPath(args?.path);
+	return args;
 }
 
-function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false, toolName?: string): void {
+function isSkillReadCall(value: any): boolean {
+	if (value?.name !== "read") return false;
+	return isSkillPath(parseToolArguments(value)?.path);
+}
+
+function bashCommand(value: any): string | undefined {
+	if (value?.name !== "bash") return undefined;
+	const command = parseToolArguments(value)?.command;
+	return typeof command === "string" && command.trim() ? command : undefined;
+}
+
+function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false, toolName?: string, toolDetail?: string): void {
 	const chars = jsonChars(value);
-	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}), ...(toolName ? { toolName } : {}) });
+	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}), ...(toolName ? { toolName } : {}), ...(toolDetail ? { toolDetail } : {}) });
 }
 
 function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPart[]): boolean {
 	let recognized = false;
 	const skillCallIds = new Set<string>();
 	const toolCallNames = new Map<string, string>();
+	const toolCallDetails = new Map<string, string>();
 	if (payload.instructions !== undefined) {
 		add(parts, "systemPrompt", "instructions", payload.instructions);
 		recognized = true;
@@ -88,10 +101,12 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 				const category = isSkillReadCall(item) ? "skills" : "toolCalls";
 				if (category === "skills" && item.call_id) skillCallIds.add(item.call_id);
 				if (typeof item.call_id === "string" && typeof item.name === "string") toolCallNames.set(item.call_id, item.name);
+				const command = bashCommand(item);
+				if (typeof item.call_id === "string" && command) toolCallDetails.set(item.call_id, command);
 				add(parts, category, category === "skills" ? "skill tool call" : "tool call", item);
 			} else if (item?.type === "function_call_output" || item?.type === "custom_tool_call_output") {
 				const category = skillCallIds.has(item.call_id) ? "skills" : "toolResults";
-				add(parts, category, category === "skills" ? "skill result" : "tool result", item, false, toolCallNames.get(item.call_id));
+				add(parts, category, category === "skills" ? "skill result" : "tool result", item, false, toolCallNames.get(item.call_id), toolCallDetails.get(item.call_id));
 			} else if (item?.type === "reasoning") {
 				const opaque = item.encrypted_content !== undefined && item.summary === undefined;
 				add(parts, "thinking", opaque ? "opaque reasoning item" : "reasoning summary", item, opaque);
@@ -117,13 +132,14 @@ function classifyChatMessages(payload: Record<string, any>, parts: PayloadPart[]
 	if (!Array.isArray(payload.messages)) return false;
 	const skillCallIds = new Set<string>();
 	const toolCallNames = new Map<string, string>();
+	const toolCallDetails = new Map<string, string>();
 	for (const message of payload.messages) {
 		const role = message?.role;
 		if (role === "system" || role === "developer") add(parts, "systemPrompt", role, message);
 		else if (role === "user") add(parts, "human", "user message", message);
 		else if (role === "tool") {
 			const category = skillCallIds.has(message.tool_call_id) ? "skills" : "toolResults";
-			add(parts, category, category === "skills" ? "skill result" : "tool result", message, false, toolCallNames.get(message.tool_call_id));
+			add(parts, category, category === "skills" ? "skill result" : "tool result", message, false, toolCallNames.get(message.tool_call_id), toolCallDetails.get(message.tool_call_id));
 		}
 		else if (role === "assistant") {
 			if (message.content !== undefined) add(parts, "agent", "assistant message", { role, content: message.content });
@@ -132,6 +148,8 @@ function classifyChatMessages(payload: Record<string, any>, parts: PayloadPart[]
 					const category = isSkillReadCall(call.function ?? call) ? "skills" : "toolCalls";
 					if (category === "skills" && call.id) skillCallIds.add(call.id);
 					if (typeof call.id === "string" && typeof call.function?.name === "string") toolCallNames.set(call.id, call.function.name);
+					const command = bashCommand({ name: call.function?.name, arguments: call.function?.arguments });
+					if (typeof call.id === "string" && command) toolCallDetails.set(call.id, command);
 					add(parts, category, category === "skills" ? "skill tool call" : "tool call", call);
 				}
 			} else if (message.tool_calls !== undefined) add(parts, "toolCalls", "tool call", message.tool_calls);
@@ -217,6 +235,7 @@ export interface AttributionRow {
 export interface InputAttribution {
 	rows: AttributionRow[];
 	toolResultRows: AttributionRow[];
+	bashCommandRows: AttributionRow[];
 	inputTokens?: number;
 	unknownTokens?: number;
 }
@@ -241,7 +260,7 @@ export function allocateInputTokens(
 	}
 
 	const allChars = parts.reduce((n, part) => n + part.chars, 0);
-	if (inputTokens === undefined || allChars === 0) return { rows: [], toolResultRows: [], inputTokens };
+	if (inputTokens === undefined || allChars === 0) return { rows: [], toolResultRows: [], bashCommandRows: [], inputTokens };
 
 	const rows: AttributionRow[] = [];
 	let allocated = 0;
@@ -289,7 +308,35 @@ export function allocateInputTokens(
 			});
 		}
 	}
-	return { rows, toolResultRows, inputTokens, unknownTokens };
+
+	const bashParts = toolResultParts.filter((part) => part.toolName === "bash");
+	const bashChars = bashParts.reduce((n, part) => n + part.chars, 0);
+	const bashTokens = toolResultRows.find((row) => row.label === "bash output")?.tokens ?? 0;
+	const bashGroups = new Map<string, PayloadPart[]>();
+	for (const part of bashParts) {
+		const command = part.toolDetail ?? "(command unavailable)";
+		const group = bashGroups.get(command) ?? [];
+		group.push(part);
+		bashGroups.set(command, group);
+	}
+	const bashCommandRows: AttributionRow[] = [];
+	if (bashChars > 0) {
+		for (const [command, group] of bashGroups) {
+			const chars = group.reduce((n, part) => n + part.chars, 0);
+			const tokens = Math.round(bashTokens * chars / bashChars);
+			const compactCommand = command.replaceAll(/\\s+/g, " ").trim();
+			bashCommandRows.push({
+				category: "toolResults",
+				label: `bash: ${compactCommand.length > 72 ? `${compactCommand.slice(0, 69)}…` : compactCommand}`,
+				chars,
+				tokens,
+				percent: inputTokens > 0 ? tokens / inputTokens * 100 : 0,
+				count: group.length,
+				opaque: group.some((part) => part.opaque),
+			});
+		}
+	}
+	return { rows, toolResultRows, bashCommandRows, inputTokens, unknownTokens };
 }
 
 export function categoryLabel(category: AttributionCategory): string {
