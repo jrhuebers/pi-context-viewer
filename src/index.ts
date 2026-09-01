@@ -188,6 +188,7 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 				contextUsage: usage,
 				usage: request?.usage,
 				inputRows: attribution.rows,
+				toolResultRows: attribution.toolResultRows,
 				unknownInputTokens: attribution.unknownTokens ?? 0,
 				payloadChars,
 			};

@@ -9,6 +9,7 @@
 - Show provider-reported input, output, cache, and reasoning usage.
 - Expand the overlay to the full terminal window.
 - Attribute exact aggregate input usage proportionally across fine-grained categories.
+- Break down estimated tool-result input by correlated tool name, including `read` and `bash`.
 
 
 ## [0.21.1] - 2026-08-06

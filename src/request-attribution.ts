@@ -17,6 +17,8 @@ export interface PayloadPart {
 	label: string;
 	chars: number;
 	opaque?: boolean;
+	/** Provider tool name, when this part is a correlated tool result. */
+	toolName?: string;
 }
 
 export interface ProviderRequestSnapshot {
@@ -63,14 +65,15 @@ function isSkillReadCall(value: any): boolean {
 	return isSkillPath(args?.path);
 }
 
-function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false): void {
+function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false, toolName?: string): void {
 	const chars = jsonChars(value);
-	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}) });
+	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}), ...(toolName ? { toolName } : {}) });
 }
 
 function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPart[]): boolean {
 	let recognized = false;
 	const skillCallIds = new Set<string>();
+	const toolCallNames = new Map<string, string>();
 	if (payload.instructions !== undefined) {
 		add(parts, "systemPrompt", "instructions", payload.instructions);
 		recognized = true;
@@ -84,10 +87,11 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 			if (item?.type === "function_call" || item?.type === "custom_tool_call") {
 				const category = isSkillReadCall(item) ? "skills" : "toolCalls";
 				if (category === "skills" && item.call_id) skillCallIds.add(item.call_id);
+				if (typeof item.call_id === "string" && typeof item.name === "string") toolCallNames.set(item.call_id, item.name);
 				add(parts, category, category === "skills" ? "skill tool call" : "tool call", item);
 			} else if (item?.type === "function_call_output" || item?.type === "custom_tool_call_output") {
 				const category = skillCallIds.has(item.call_id) ? "skills" : "toolResults";
-				add(parts, category, category === "skills" ? "skill result" : "tool result", item);
+				add(parts, category, category === "skills" ? "skill result" : "tool result", item, false, toolCallNames.get(item.call_id));
 			} else if (item?.type === "reasoning") {
 				const opaque = item.encrypted_content !== undefined && item.summary === undefined;
 				add(parts, "thinking", opaque ? "opaque reasoning item" : "reasoning summary", item, opaque);
@@ -112,13 +116,14 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 function classifyChatMessages(payload: Record<string, any>, parts: PayloadPart[]): boolean {
 	if (!Array.isArray(payload.messages)) return false;
 	const skillCallIds = new Set<string>();
+	const toolCallNames = new Map<string, string>();
 	for (const message of payload.messages) {
 		const role = message?.role;
 		if (role === "system" || role === "developer") add(parts, "systemPrompt", role, message);
 		else if (role === "user") add(parts, "human", "user message", message);
 		else if (role === "tool") {
 			const category = skillCallIds.has(message.tool_call_id) ? "skills" : "toolResults";
-			add(parts, category, category === "skills" ? "skill result" : "tool result", message);
+			add(parts, category, category === "skills" ? "skill result" : "tool result", message, false, toolCallNames.get(message.tool_call_id));
 		}
 		else if (role === "assistant") {
 			if (message.content !== undefined) add(parts, "agent", "assistant message", { role, content: message.content });
@@ -126,6 +131,7 @@ function classifyChatMessages(payload: Record<string, any>, parts: PayloadPart[]
 				for (const call of message.tool_calls) {
 					const category = isSkillReadCall(call.function ?? call) ? "skills" : "toolCalls";
 					if (category === "skills" && call.id) skillCallIds.add(call.id);
+					if (typeof call.id === "string" && typeof call.function?.name === "string") toolCallNames.set(call.id, call.function.name);
 					add(parts, category, category === "skills" ? "skill tool call" : "tool call", call);
 				}
 			} else if (message.tool_calls !== undefined) add(parts, "toolCalls", "tool call", message.tool_calls);
@@ -208,6 +214,13 @@ export interface AttributionRow {
 	opaque: boolean;
 }
 
+export interface InputAttribution {
+	rows: AttributionRow[];
+	toolResultRows: AttributionRow[];
+	inputTokens?: number;
+	unknownTokens?: number;
+}
+
 const usageInputTokens = (usage: any): number | undefined => {
 	if (!usage || typeof usage.input !== "number") return undefined;
 	return usage.input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
@@ -218,7 +231,7 @@ export function allocateInputTokens(
 	parts: PayloadPart[],
 	usage: any,
 	fallbackUsage?: ContextUsage,
-): { rows: AttributionRow[]; inputTokens?: number; unknownTokens?: number } {
+): InputAttribution {
 	const inputTokens = usageInputTokens(usage) ?? (fallbackUsage?.tokens ?? undefined);
 	const grouped = new Map<AttributionCategory, PayloadPart[]>();
 	for (const part of parts) {
@@ -228,7 +241,7 @@ export function allocateInputTokens(
 	}
 
 	const allChars = parts.reduce((n, part) => n + part.chars, 0);
-	if (inputTokens === undefined || allChars === 0) return { rows: [], inputTokens };
+	if (inputTokens === undefined || allChars === 0) return { rows: [], toolResultRows: [], inputTokens };
 
 	const rows: AttributionRow[] = [];
 	let allocated = 0;
@@ -247,7 +260,36 @@ export function allocateInputTokens(
 		});
 	}
 	const unknownTokens = Math.max(0, inputTokens - allocated);
-	return { rows, inputTokens, unknownTokens };
+
+	// Tool results are one provider input bucket, but correlating each result with
+	// its preceding tool call lets the UI show which tools supplied that text.
+	const toolResultParts = parts.filter((part) => part.category === "toolResults");
+	const toolResultTokens = rows.find((row) => row.category === "toolResults")?.tokens ?? 0;
+	const toolResultChars = toolResultParts.reduce((n, part) => n + part.chars, 0);
+	const toolResultGroups = new Map<string, PayloadPart[]>();
+	for (const part of toolResultParts) {
+		const name = part.toolName ?? "unknown tool";
+		const group = toolResultGroups.get(name) ?? [];
+		group.push(part);
+		toolResultGroups.set(name, group);
+	}
+	const toolResultRows: AttributionRow[] = [];
+	if (toolResultChars > 0) {
+		for (const [toolName, group] of toolResultGroups) {
+			const chars = group.reduce((n, part) => n + part.chars, 0);
+			const tokens = Math.round(toolResultTokens * chars / toolResultChars);
+			toolResultRows.push({
+				category: "toolResults",
+				label: `${toolName} output`,
+				chars,
+				tokens,
+				percent: inputTokens > 0 ? tokens / inputTokens * 100 : 0,
+				count: group.length,
+				opaque: group.some((part) => part.opaque),
+			});
+		}
+	}
+	return { rows, toolResultRows, inputTokens, unknownTokens };
 }
 
 export function categoryLabel(category: AttributionCategory): string {

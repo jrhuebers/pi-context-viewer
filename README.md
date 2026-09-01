@@ -6,6 +6,7 @@ The `/context` overlay shows:
 
 - provider-reported input, output, cache, and reasoning usage;
 - proportional attribution of input tokens to system prompt, tool definitions, human/agent messages, tool calls, tool results, and replayed thinking;
+- a per-tool breakdown of estimated tool-result input, such as `read` and `bash`;
 - the provider-specific payload captured immediately before it is sent;
 - system/instruction text, exact serialized tool definitions, session messages, and a combined view;
 - a full-window overlay sized to the current terminal.
@@ -34,4 +35,4 @@ The extension is based on `@agnishc/edb-context-viewer` by Agnish Chakraborty an
 pi -e ./src/index.ts
 ```
 
-The extension keeps the latest provider payload in memory only; it does not write request payloads or context contents to the session JSONL file. The Full tab includes system instructions, tool definitions, messages, and the captured provider payload.
+The extension keeps the latest provider payload in memory only; it does not write request payloads or context contents to the session JSONL file. The Full tab includes system instructions, tool definitions, session messages, and usage. The Payload tab is the authoritative captured provider payload; the Full tab does not duplicate it.
