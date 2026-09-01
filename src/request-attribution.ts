@@ -79,9 +79,15 @@ function bashCommand(value: any): string | undefined {
 
 function compactBashCommand(command: string): string {
 	let compact = command.replaceAll(/\s+/g, " ").trim();
-	// Environment assignments used to prepare searches are not useful in the
-	// breakdown label (for example, PIROOT=/...; rg ...).
-	compact = compact.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^;\s]+)\s*;?\s*)+/, "");
+	// Environment setup is not useful in the breakdown label. Remove leading
+	// assignments, exports, and env wrappers (for example, PIROOT=/...; rg ...).
+	for (;;) {
+		const before = compact;
+		compact = compact.replace(/^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^;\s]+)\s*(?:;|&&)?\s*/, "");
+		compact = compact.replace(/^export\s+[A-Za-z_][A-Za-z0-9_]*\s*(?:;|&&)\s*/, "");
+		compact = compact.replace(/^env\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^;\s]+))\s+)+/, "");
+		if (compact === before) break;
+	}
 	return compact || command.replaceAll(/\s+/g, " ").trim();
 }
 
