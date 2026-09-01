@@ -77,6 +77,14 @@ function bashCommand(value: any): string | undefined {
 	return typeof command === "string" && command.trim() ? command : undefined;
 }
 
+function compactBashCommand(command: string): string {
+	let compact = command.replaceAll(/\s+/g, " ").trim();
+	// Environment assignments used to prepare searches are not useful in the
+	// breakdown label (for example, PIROOT=/...; rg ...).
+	compact = compact.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^;\s]+)\s*;?\s*)+/, "");
+	return compact || command.replaceAll(/\s+/g, " ").trim();
+}
+
 function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false, toolName?: string, toolDetail?: string): void {
 	const chars = jsonChars(value);
 	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}), ...(toolName ? { toolName } : {}), ...(toolDetail ? { toolDetail } : {}) });
@@ -324,7 +332,7 @@ export function allocateInputTokens(
 		for (const [command, group] of bashGroups) {
 			const chars = group.reduce((n, part) => n + part.chars, 0);
 			const tokens = Math.round(bashTokens * chars / bashChars);
-			const compactCommand = command.replaceAll(/\\s+/g, " ").trim();
+			const compactCommand = compactBashCommand(command);
 			bashCommandRows.push({
 				category: "toolResults",
 				label: `bash: ${compactCommand.length > 72 ? `${compactCommand.slice(0, 69)}…` : compactCommand}`,
