@@ -11,6 +11,7 @@
 - Attribute exact aggregate input usage proportionally across fine-grained categories.
 - Break down estimated tool-result input by correlated tool name, including `read` and `bash`; show the top four tools while retaining all recorded tool data.
 - Show the top three Bash command families by estimated tool-result input, collapsing variations such as multiple `rg` invocations into one row.
+- Render compaction and branch summaries, plus direct Bash execution messages, in the Messages and Full tabs.
 
 
 ## [0.21.1] - 2026-08-06

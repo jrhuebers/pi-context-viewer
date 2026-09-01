@@ -75,7 +75,19 @@ export function formatMessageForDisplay(message: SessionContext["messages"][numb
 		lines.push(`Tool Call ID: ${msg.toolCallId ?? "unknown"}`);
 		lines.push(`Error: ${msg.isError ? "yes" : "no"}`);
 	}
-	lines.push(...formatContent(msg.content));
+	if (msg.role === "compactionSummary" || msg.role === "branchSummary") {
+		if (msg.role === "compactionSummary" && msg.tokensBefore != null) lines.push(`Tokens before compaction: ${msg.tokensBefore}`);
+		if (msg.role === "branchSummary" && msg.fromId) lines.push(`From entry: ${msg.fromId}`);
+		lines.push("Summary:", ...(typeof msg.summary === "string" ? msg.summary.split("\n") : ["(empty)"]));
+	} else if (msg.role === "bashExecution") {
+		lines.push(`Command: ${msg.command ?? "unknown"}`);
+		lines.push(`Exit code: ${msg.exitCode ?? "unknown"}`);
+		lines.push(`Cancelled: ${msg.cancelled ? "yes" : "no"}`);
+		if (msg.excludeFromContext) lines.push("Excluded from provider context: yes");
+		lines.push("Output:", ...(typeof msg.output === "string" ? msg.output.split("\n") : ["(no output)"]));
+	} else {
+		lines.push(...formatContent(msg.content));
+	}
 	return lines;
 }
 
