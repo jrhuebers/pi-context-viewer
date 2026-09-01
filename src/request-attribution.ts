@@ -85,6 +85,19 @@ function compactBashCommand(command: string): string {
 	return compact || command.replaceAll(/\s+/g, " ").trim();
 }
 
+function bashCommandFamily(command: string): string {
+	const compact = compactBashCommand(command);
+	const firstWord = compact.match(/^([A-Za-z_][A-Za-z0-9_.-]*)/)?.[1];
+	// A shell script may contain diagnostic strings mentioning rg/find. Prefer
+	// the actual interpreter when the command starts with one.
+	if (firstWord === "node" || firstWord === "python" || firstWord === "python3") return firstWord;
+	for (const family of ["rg", "find", "grep"]) {
+		if (new RegExp(`(?:^|[;&|]\\s*)${family}\\b`).test(compact)) return family;
+	}
+	if (firstWord) return firstWord;
+	return compact.match(/\b([A-Za-z_][A-Za-z0-9_.-]*)\b/)?.[1] ?? "shell";
+}
+
 function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false, toolName?: string, toolDetail?: string): void {
 	const chars = jsonChars(value);
 	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}), ...(toolName ? { toolName } : {}), ...(toolDetail ? { toolDetail } : {}) });
@@ -322,7 +335,7 @@ export function allocateInputTokens(
 	const bashTokens = toolResultRows.find((row) => row.label === "bash output")?.tokens ?? 0;
 	const bashGroups = new Map<string, PayloadPart[]>();
 	for (const part of bashParts) {
-		const command = part.toolDetail ?? "(command unavailable)";
+		const command = bashCommandFamily(part.toolDetail ?? "(command unavailable)");
 		const group = bashGroups.get(command) ?? [];
 		group.push(part);
 		bashGroups.set(command, group);
@@ -332,10 +345,9 @@ export function allocateInputTokens(
 		for (const [command, group] of bashGroups) {
 			const chars = group.reduce((n, part) => n + part.chars, 0);
 			const tokens = Math.round(bashTokens * chars / bashChars);
-			const compactCommand = compactBashCommand(command);
 			bashCommandRows.push({
 				category: "toolResults",
-				label: `bash: ${compactCommand.length > 72 ? `${compactCommand.slice(0, 69)}…` : compactCommand}`,
+				label: `bash: ${command}`,
 				chars,
 				tokens,
 				percent: inputTokens > 0 ? tokens / inputTokens * 100 : 0,
