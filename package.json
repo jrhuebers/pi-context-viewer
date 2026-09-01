@@ -9,7 +9,7 @@
 	],
 	"type": "module",
 	"license": "MIT",
-	"author": "Agnish Chakraborty",
+	"author": "J. R. Huebers",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/jrhuebers/pi-context-viewer.git"

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0 - 2026-09-01
+
+- Forked the original context viewer into `jrhuebers/pi-context-viewer`.
+- Capture the final provider payload with `before_provider_request`.
+- Add a Payload tab showing the actual serialized request.
+- Show provider-reported input, output, cache, and reasoning usage.
+- Attribute exact aggregate input usage proportionally across fine-grained categories.
+
+
 ## [0.21.1] - 2026-08-06
 
 ## [0.21.0] - 2026-08-06

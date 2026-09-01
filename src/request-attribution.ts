@@ -6,6 +6,7 @@ export type AttributionCategory =
 	| "human"
 	| "agent"
 	| "thinking"
+	| "skills"
 	| "toolCalls"
 	| "toolResults"
 	| "summaries"
@@ -49,6 +50,19 @@ const textChars = (value: unknown): number => {
 	return 0;
 };
 
+function isSkillPath(path: unknown): boolean {
+	return typeof path === "string" && /(^|\/)\.agents\/skills\/|(^|\/)\.pi\/agent\/.*\/skills\/|(^|\/)skills\/[^/]+\/SKILL\.md$/i.test(path);
+}
+
+function isSkillReadCall(value: any): boolean {
+	if (value?.name !== "read") return false;
+	let args = value.arguments ?? value.input ?? value.args;
+	if (typeof args === "string") {
+		try { args = JSON.parse(args); } catch { return false; }
+	}
+	return isSkillPath(args?.path);
+}
+
 function add(parts: PayloadPart[], category: AttributionCategory, label: string, value: unknown, opaque = false): void {
 	const chars = jsonChars(value);
 	if (chars > 0) parts.push({ category, label, chars, ...(opaque ? { opaque: true } : {}) });
@@ -56,6 +70,7 @@ function add(parts: PayloadPart[], category: AttributionCategory, label: string,
 
 function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPart[]): boolean {
 	let recognized = false;
+	const skillCallIds = new Set<string>();
 	if (payload.instructions !== undefined) {
 		add(parts, "systemPrompt", "instructions", payload.instructions);
 		recognized = true;
@@ -67,9 +82,12 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 	if (Array.isArray(payload.input)) {
 		for (const item of payload.input) {
 			if (item?.type === "function_call" || item?.type === "custom_tool_call") {
-				add(parts, "toolCalls", "tool call", item);
+				const category = isSkillReadCall(item) ? "skills" : "toolCalls";
+				if (category === "skills" && item.call_id) skillCallIds.add(item.call_id);
+				add(parts, category, category === "skills" ? "skill tool call" : "tool call", item);
 			} else if (item?.type === "function_call_output" || item?.type === "custom_tool_call_output") {
-				add(parts, "toolResults", "tool result", item);
+				const category = skillCallIds.has(item.call_id) ? "skills" : "toolResults";
+				add(parts, category, category === "skills" ? "skill result" : "tool result", item);
 			} else if (item?.type === "reasoning") {
 				const opaque = item.encrypted_content !== undefined && item.summary === undefined;
 				add(parts, "thinking", opaque ? "opaque reasoning item" : "reasoning summary", item, opaque);
@@ -88,14 +106,24 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 
 function classifyChatMessages(payload: Record<string, any>, parts: PayloadPart[]): boolean {
 	if (!Array.isArray(payload.messages)) return false;
+	const skillCallIds = new Set<string>();
 	for (const message of payload.messages) {
 		const role = message?.role;
 		if (role === "system" || role === "developer") add(parts, "systemPrompt", role, message);
 		else if (role === "user") add(parts, "human", "user message", message);
-		else if (role === "tool") add(parts, "toolResults", "tool result", message);
+		else if (role === "tool") {
+			const category = skillCallIds.has(message.tool_call_id) ? "skills" : "toolResults";
+			add(parts, category, category === "skills" ? "skill result" : "tool result", message);
+		}
 		else if (role === "assistant") {
 			if (message.content !== undefined) add(parts, "agent", "assistant message", { role, content: message.content });
-			if (message.tool_calls !== undefined) add(parts, "toolCalls", "tool call", message.tool_calls);
+			if (Array.isArray(message.tool_calls)) {
+				for (const call of message.tool_calls) {
+					const category = isSkillReadCall(call.function ?? call) ? "skills" : "toolCalls";
+					if (category === "skills" && call.id) skillCallIds.add(call.id);
+					add(parts, category, category === "skills" ? "skill tool call" : "tool call", call);
+				}
+			} else if (message.tool_calls !== undefined) add(parts, "toolCalls", "tool call", message.tool_calls);
 			if (message.reasoning_content !== undefined) add(parts, "thinking", "reasoning", message.reasoning_content);
 		} else add(parts, "other", "message", message);
 	}
@@ -104,6 +132,7 @@ function classifyChatMessages(payload: Record<string, any>, parts: PayloadPart[]
 
 function classifyAnthropic(payload: Record<string, any>, parts: PayloadPart[]): boolean {
 	let recognized = false;
+	const skillCallIds = new Set<string>();
 	if (payload.system !== undefined) {
 		add(parts, "systemPrompt", "system", payload.system);
 		recognized = true;
@@ -118,8 +147,14 @@ function classifyAnthropic(payload: Record<string, any>, parts: PayloadPart[]): 
 			else if (message?.role === "assistant") {
 				const content = Array.isArray(message.content) ? message.content : [message.content];
 				for (const block of content) {
-					if (block?.type === "tool_use") add(parts, "toolCalls", "tool call", block);
-					else if (block?.type === "thinking") add(parts, "thinking", "thinking", block);
+					if (block?.type === "tool_use") {
+						const category = isSkillReadCall(block) ? "skills" : "toolCalls";
+						if (category === "skills" && block.id) skillCallIds.add(block.id);
+						add(parts, category, category === "skills" ? "skill tool call" : "tool call", block);
+					} else if (block?.type === "tool_result") {
+						const category = skillCallIds.has(block.tool_use_id) ? "skills" : "toolResults";
+						add(parts, category, category === "skills" ? "skill result" : "tool result", block);
+					} else if (block?.type === "thinking") add(parts, "thinking", "thinking", block);
 					else add(parts, "agent", "assistant content", block);
 				}
 			} else if (message?.role === "tool") add(parts, "toolResults", "tool result", message);
@@ -217,6 +252,7 @@ export function categoryLabel(category: AttributionCategory): string {
 		human: "Human messages",
 		agent: "Agent messages",
 		thinking: "Replayed thinking",
+		skills: "Skills",
 		toolCalls: "Tool calls",
 		toolResults: "Tool results",
 		summaries: "Summaries",
