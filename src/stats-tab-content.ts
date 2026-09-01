@@ -91,10 +91,12 @@ export class StatsTabContent implements TabContent {
 		}
 		if (this.stats.toolResultRows.length > 0) {
 			lines.push("");
-			lines.push(`  ${th.fg("accent", "Tool-result breakdown (input estimate)")}`);
-			for (const row of this.stats.toolResultRows.sort((a, b) => b.tokens - a.tokens)) {
+			lines.push(`  ${th.fg("accent", "Tool-result breakdown (top 4; input estimate)")}`);
+			const toolRows = [...this.stats.toolResultRows].sort((a, b) => b.tokens - a.tokens);
+			for (const row of toolRows.slice(0, 4)) {
 				lines.push(`    ${row.label.padEnd(22)} ${formatTokens(row.tokens).padStart(8)} · ${row.percent.toFixed(1).padStart(5)}% · ${row.count} result${row.count === 1 ? "" : "s"}`);
 			}
+			if (toolRows.length > 4) lines.push(`    ${th.fg("dim", `+ ${toolRows.length - 4} more tool${toolRows.length - 4 === 1 ? "" : "s"} recorded`)}`);
 		}
 		lines.push("");
 		if (context) {
