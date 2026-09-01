@@ -13,7 +13,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
-/** Number of lines shown in the content area of each tab. */
+/** Default number of lines shown in the content area when no viewport is supplied. */
 export const CONTENT_HEIGHT = 28;
 
 /**
@@ -63,6 +63,8 @@ export interface TabbedOverlayOptions {
 	theme: Theme;
 	/** Called when the user closes the overlay (Escape / q). */
 	done: () => void;
+	/** Content height in rows; derived from the terminal for full-window overlays. */
+	contentHeight?: number;
 }
 
 export class TabbedOverlay {
@@ -137,8 +139,9 @@ export class TabbedOverlay {
 		}
 
 		// ── Content area ─────────────────────────────────────────────────────────
-		const contentLines = this.activeTab.renderContent(innerW, CONTENT_HEIGHT);
-		for (let i = 0; i < CONTENT_HEIGHT; i++) {
+		const contentHeight = this.opts.contentHeight ?? CONTENT_HEIGHT;
+		const contentLines = this.activeTab.renderContent(innerW, contentHeight);
+		for (let i = 0; i < contentHeight; i++) {
 			if (i < contentLines.length) {
 				lines.push(row(truncateToWidth(contentLines[i]!, innerW)));
 			} else {

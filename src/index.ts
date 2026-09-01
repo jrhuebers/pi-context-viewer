@@ -94,6 +94,10 @@ function providerSystemText(payload: unknown, fallback: string): string {
 		const systemMessages = p.messages.filter((m: any) => m?.role === "system" || m?.role === "developer");
 		if (systemMessages.length > 0) return JSON.stringify(systemMessages, null, 2);
 	}
+	if (Array.isArray(p.input)) {
+		const systemItems = p.input.filter((m: any) => m?.role === "system" || m?.role === "developer");
+		if (systemItems.length > 0) return JSON.stringify(systemItems, null, 2);
+	}
 	return fallback;
 }
 
@@ -107,6 +111,7 @@ function providerToolsText(payload: unknown, activeToolDefs: unknown[]): string 
 
 function buildTotalContextText(
 	systemPrompt: string,
+	toolsText: string,
 	context: SessionContext,
 	usage: ContextUsage | undefined,
 	model: ContextViewerModelInfo | undefined,
@@ -114,6 +119,7 @@ function buildTotalContextText(
 ): string {
 	const sections: string[] = [];
 	sections.push("═══════════════════════════════════════════════════════", "SYSTEM / INSTRUCTIONS", "═══════════════════════════════════════════════════════", systemPrompt, "");
+	sections.push("═══════════════════════════════════════════════════════", "TOOL DEFINITIONS", "═══════════════════════════════════════════════════════", toolsText, "");
 	sections.push("═══════════════════════════════════════════════════════", "MESSAGES", "═══════════════════════════════════════════════════════");
 	if (context.messages.length > 0) {
 		for (let i = 0; i < context.messages.length; i++) sections.push(...formatMessageForDisplay(context.messages[i]!, i));
@@ -131,7 +137,12 @@ function buildTotalContextText(
 
 const OVERLAY_OPTIONS = {
 	overlay: true,
-	overlayOptions: { anchor: "center" as const, width: "90%" as const, minWidth: 60, maxHeight: "90%" as const },
+	overlayOptions: {
+		anchor: "center" as const,
+		width: "100%" as const,
+		maxHeight: "100%" as const,
+		margin: 0,
+	},
 };
 
 export default function contextViewerExtension(pi: ExtensionAPI): void {
@@ -184,12 +195,12 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 				unknownInputTokens: attribution.unknownTokens ?? 0,
 				payloadChars,
 			};
-			const fullText = buildTotalContextText(systemPrompt, context, usage, ctx.model, request);
+			const fullText = buildTotalContextText(systemPrompt, toolsText, context, usage, ctx.model, request);
 			const subtitle = usage?.tokens != null && usage.contextWindow != null
 				? `${formatTokens(usage.tokens)} / ${formatTokens(usage.contextWindow)} (${(usage.percent ?? (usage.tokens / usage.contextWindow) * 100).toFixed(1)}%)`
 				: "no usage data yet";
 
-			await ctx.ui.custom<void>((_tui, theme, _keybindings, done) => {
+			await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
 				const messagesLines: string[] = [];
 				if (context.messages.length > 0) {
 					for (let i = 0; i < context.messages.length; i++) messagesLines.push(...formatMessageForDisplay(context.messages[i]!, i));
@@ -204,7 +215,14 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 					new ScrollableTabContent({ rawText: payloadText, displayLines: buildNumberedLines(payloadText, theme), theme }, "Payload"),
 					new ScrollableTabContent({ rawText: fullText, displayLines: buildNumberedLines(fullText, theme), theme }, "Full"),
 				];
-				return new TabbedOverlay({ title: "Context Viewer", subtitle, tabs, theme, done });
+				return new TabbedOverlay({
+					title: "Context Viewer",
+					subtitle,
+					tabs,
+					theme,
+					done,
+					contentHeight: Math.max(1, tui.terminal.rows - 8),
+				});
 			}, OVERLAY_OPTIONS);
 		},
 	});

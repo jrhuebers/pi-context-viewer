@@ -91,6 +91,8 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 			} else if (item?.type === "reasoning") {
 				const opaque = item.encrypted_content !== undefined && item.summary === undefined;
 				add(parts, "thinking", opaque ? "opaque reasoning item" : "reasoning summary", item, opaque);
+			} else if (item?.role === "system" || item?.role === "developer") {
+				add(parts, "systemPrompt", item.role, item);
 			} else if (item?.role === "user") {
 				add(parts, "human", "user message", item);
 			} else if (item?.role === "assistant") {
@@ -99,6 +101,9 @@ function classifyOpenAIResponses(payload: Record<string, any>, parts: PayloadPar
 				add(parts, "other", "input item", item);
 			}
 		}
+		recognized = true;
+	} else if (payload.input !== undefined) {
+		add(parts, "human", "input", payload.input);
 		recognized = true;
 	}
 	return recognized;

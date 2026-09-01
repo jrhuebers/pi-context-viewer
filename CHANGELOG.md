@@ -5,7 +5,9 @@
 - Forked the original context viewer into `jrhuebers/pi-context-viewer`.
 - Capture the final provider payload with `before_provider_request`.
 - Add a Payload tab showing the actual serialized request.
+- Include tool definitions in the Full tab.
 - Show provider-reported input, output, cache, and reasoning usage.
+- Expand the overlay to the full terminal window.
 - Attribute exact aggregate input usage proportionally across fine-grained categories.
 
 

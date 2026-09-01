@@ -7,7 +7,8 @@ The `/context` overlay shows:
 - provider-reported input, output, cache, and reasoning usage;
 - proportional attribution of input tokens to system prompt, tool definitions, human/agent messages, tool calls, tool results, and replayed thinking;
 - the provider-specific payload captured immediately before it is sent;
-- system/instruction text, exact serialized tool definitions, session messages, and a combined view.
+- system/instruction text, exact serialized tool definitions, session messages, and a combined view;
+- a full-window overlay sized to the current terminal.
 
 Per-category token values are estimates calibrated to the provider's exact aggregate usage. OpenAI's hidden reasoning count is shown from `usage.output_tokens_details.reasoning_tokens` when available, while opaque reasoning replay is marked as such.
 
@@ -33,4 +34,4 @@ The extension is based on `@agnishc/edb-context-viewer` by Agnish Chakraborty an
 pi -e ./src/index.ts
 ```
 
-The extension keeps the latest provider payload in memory only; it does not write request payloads or context contents to the session JSONL file.
+The extension keeps the latest provider payload in memory only; it does not write request payloads or context contents to the session JSONL file. The Full tab includes system instructions, tool definitions, messages, and the captured provider payload.
