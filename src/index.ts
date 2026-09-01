@@ -115,7 +115,6 @@ function buildTotalContextText(
 	context: SessionContext,
 	usage: ContextUsage | undefined,
 	model: ContextViewerModelInfo | undefined,
-	request: ProviderRequestSnapshot | undefined,
 ): string {
 	const sections: string[] = [];
 	sections.push("═══════════════════════════════════════════════════════", "SYSTEM / INSTRUCTIONS", "═══════════════════════════════════════════════════════", systemPrompt, "");
@@ -124,9 +123,6 @@ function buildTotalContextText(
 	if (context.messages.length > 0) {
 		for (let i = 0; i < context.messages.length; i++) sections.push(...formatMessageForDisplay(context.messages[i]!, i));
 	} else sections.push("(no messages yet)");
-	if (request) {
-		sections.push("", "═══════════════════════════════════════════════════════", "FINAL PROVIDER PAYLOAD", "═══════════════════════════════════════════════════════", formatProviderPayload(request.payload));
-	}
 	sections.push("", "═══════════════════════════════════════════════════════", "CONTEXT USAGE", "═══════════════════════════════════════════════════════");
 	if (usage) {
 		sections.push(`Context meter: ${usage.tokens?.toLocaleString() ?? "unknown"}`);
@@ -195,7 +191,7 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 				unknownInputTokens: attribution.unknownTokens ?? 0,
 				payloadChars,
 			};
-			const fullText = buildTotalContextText(systemPrompt, toolsText, context, usage, ctx.model, request);
+			const fullText = buildTotalContextText(systemPrompt, toolsText, context, usage, ctx.model);
 			const subtitle = usage?.tokens != null && usage.contextWindow != null
 				? `${formatTokens(usage.tokens)} / ${formatTokens(usage.contextWindow)} (${(usage.percent ?? (usage.tokens / usage.contextWindow) * 100).toFixed(1)}%)`
 				: "no usage data yet";
