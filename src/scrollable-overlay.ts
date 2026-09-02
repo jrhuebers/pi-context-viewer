@@ -11,6 +11,7 @@
 
 import { copyToClipboard as copyTextToClipboard, type Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDelta } from "./mouse.js";
 
 const CONTENT_HEIGHT = 30;
 
@@ -27,6 +28,8 @@ export interface ScrollableOverlayOptions {
 	theme: Theme;
 	/** Called when the user closes the overlay */
 	done: () => void;
+	/** Lines to scroll per mouse-wheel notch, matching pi's fullscreen setting. */
+	wheelScrollLines?: number;
 }
 
 export class ScrollableOverlay {
@@ -76,6 +79,14 @@ export class ScrollableOverlay {
 				}
 				return;
 			}
+			return;
+		}
+
+		const wheelDelta = parseWheelDelta(data);
+		if (wheelDelta !== undefined) {
+			const amount = this.opts.wheelScrollLines ?? DEFAULT_WHEEL_SCROLL_LINES;
+			if (wheelDelta < 0) this.scrollUp(amount);
+			else this.scrollDown(amount);
 			return;
 		}
 
@@ -258,7 +269,7 @@ export class ScrollableOverlay {
 			statusLeft += th.fg("success", "✓ Copied! ");
 		}
 
-		const helpItems = ["↑↓ scroll", "/ search", "n/N next", "y copy", "q close"];
+		const helpItems = ["↑↓/wheel scroll", "/ search", "n/N next", "y copy", "q close"];
 		const helpText = th.fg("dim", helpItems.join(" · "));
 
 		lines.push(row(statusLeft + helpText));

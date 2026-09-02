@@ -2,6 +2,7 @@ import type { ContextUsage, Theme } from "@earendil-works/pi-coding-agent";
 import type { AttributionRow } from "./request-attribution.js";
 import type { TabContent } from "./tabbed-overlay.js";
 import { formatTokens } from "./utils.js";
+import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDelta } from "./mouse.js";
 
 export interface ContextStats {
 	modelName: string;
@@ -31,10 +32,14 @@ function attributionLabel(label: string): string {
 
 export class StatsTabContent implements TabContent {
 	readonly name = "Stats";
-	readonly footerHints = "↑↓ scroll";
+	readonly footerHints = "↑↓/wheel scroll";
 	private scrollOffset = 0;
 
-	constructor(private stats: ContextStats, private theme: Theme) {}
+	constructor(
+		private stats: ContextStats,
+		private theme: Theme,
+		private wheelScrollLines: number = DEFAULT_WHEEL_SCROLL_LINES,
+	) {}
 
 	getAboveContentLine(_innerWidth: number): string | null {
 		return null;
@@ -48,6 +53,11 @@ export class StatsTabContent implements TabContent {
 	}
 
 	handleInput(data: string): boolean {
+		const wheelDelta = parseWheelDelta(data);
+		if (wheelDelta !== undefined) {
+			this.scrollOffset = Math.max(0, this.scrollOffset + wheelDelta * this.wheelScrollLines);
+			return true;
+		}
 		if (data === "j" || data === "\u001b[B") {
 			this.scrollOffset++;
 			return true;

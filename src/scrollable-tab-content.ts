@@ -7,6 +7,7 @@
 
 import { copyToClipboard as copyTextToClipboard, type Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDelta } from "./mouse.js";
 import type { TabContent } from "./tabbed-overlay.js";
 
 export interface ScrollableTabContentOptions {
@@ -16,6 +17,8 @@ export interface ScrollableTabContentOptions {
 	displayLines: string[];
 	/** Active theme */
 	theme: Theme;
+	/** Lines to scroll per mouse-wheel notch, matching pi's fullscreen setting. */
+	wheelScrollLines?: number;
 }
 
 export class ScrollableTabContent implements TabContent {
@@ -70,7 +73,7 @@ export class ScrollableTabContent implements TabContent {
 		return left;
 	}
 
-	readonly footerHints = "↑↓ scroll · / search · n/N next · y copy";
+	readonly footerHints = "↑↓/wheel scroll · / search · n/N next · y copy";
 
 	/**
 	 * Handle keyboard input. Returns true if the key was consumed (prevents outer
@@ -117,6 +120,13 @@ export class ScrollableTabContent implements TabContent {
 		}
 
 		// Normal mode — handle scroll/search/copy, NOT q/Escape (those go to TabbedOverlay)
+		const wheelDelta = parseWheelDelta(data);
+		if (wheelDelta !== undefined) {
+			const amount = this.opts.wheelScrollLines ?? DEFAULT_WHEEL_SCROLL_LINES;
+			if (wheelDelta < 0) this.scrollUp(amount);
+			else this.scrollDown(amount);
+			return true;
+		}
 		if (matchesKey(data, Key.down) || data === "j") {
 			this.scrollDown(1);
 			return true;

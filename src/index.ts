@@ -10,6 +10,7 @@ import { ScrollableTabContent } from "./scrollable-tab-content.js";
 import { allocateInputTokens, classifyProviderPayload, formatProviderPayload, type ProviderRequestSnapshot } from "./request-attribution.js";
 import { StatsTabContent, type ContextStats } from "./stats-tab-content.js";
 import { TabbedOverlay } from "./tabbed-overlay.js";
+import { getWheelScrollLines } from "./mouse.js";
 import { formatTokens } from "./utils.js";
 
 /** Build display lines with line numbers from raw text. */
@@ -211,6 +212,7 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 				: "no usage data yet";
 
 			await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
+				const wheelScrollLines = getWheelScrollLines(tui);
 				const messagesLines: string[] = [];
 				if (context.messages.length > 0) {
 					for (let i = 0; i < context.messages.length; i++) messagesLines.push(...formatMessageForDisplay(context.messages[i]!, i));
@@ -218,12 +220,12 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 				const messagesText = messagesLines.join("\n");
 				const payloadText = request ? formatProviderPayload(request.payload) : "(no provider request captured yet)";
 				const tabs = [
-					new StatsTabContent(stats, theme),
-					new ScrollableTabContent({ rawText: systemPrompt, displayLines: buildNumberedLines(systemPrompt, theme), theme }, "System"),
-					new ScrollableTabContent({ rawText: toolsText, displayLines: buildNumberedLines(toolsText, theme), theme }, "Tools"),
-					new ScrollableTabContent({ rawText: messagesText, displayLines: buildNumberedLines(messagesText, theme), theme }, "Messages"),
-					new ScrollableTabContent({ rawText: payloadText, displayLines: buildNumberedLines(payloadText, theme), theme }, "Payload"),
-					new ScrollableTabContent({ rawText: fullText, displayLines: buildNumberedLines(fullText, theme), theme }, "Full"),
+					new StatsTabContent(stats, theme, wheelScrollLines),
+					new ScrollableTabContent({ rawText: systemPrompt, displayLines: buildNumberedLines(systemPrompt, theme), theme, wheelScrollLines }, "System"),
+					new ScrollableTabContent({ rawText: toolsText, displayLines: buildNumberedLines(toolsText, theme), theme, wheelScrollLines }, "Tools"),
+					new ScrollableTabContent({ rawText: messagesText, displayLines: buildNumberedLines(messagesText, theme), theme, wheelScrollLines }, "Messages"),
+					new ScrollableTabContent({ rawText: payloadText, displayLines: buildNumberedLines(payloadText, theme), theme, wheelScrollLines }, "Payload"),
+					new ScrollableTabContent({ rawText: fullText, displayLines: buildNumberedLines(fullText, theme), theme, wheelScrollLines }, "Full"),
 				];
 				return new TabbedOverlay({
 					title: "Context Viewer",
