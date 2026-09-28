@@ -7,6 +7,7 @@ The `/context` overlay shows:
 - provider-reported input, output, cache, and reasoning usage;
 - proportional attribution of input tokens to system prompt, tool definitions, human/agent messages, tool calls, tool results, and replayed thinking;
 - a per-tool breakdown of estimated tool-result input, showing the top four tools (such as `read` and `bash`) while recording all tools, plus the top three contributing Bash command families (for example, one combined `rg` row);
+- on Stats, per-skill full-instruction load counts for the selected session branch (successful `read` calls and `/skill:name` invocations separately), alongside counts still in the current compaction-aware context; summaries and advertised skill descriptions do not count;
 - the provider-specific payload captured immediately before it is sent;
 - system/instruction text, exact serialized tool definitions, session messages, and a combined view;
 - a full-window overlay sized to the current terminal.

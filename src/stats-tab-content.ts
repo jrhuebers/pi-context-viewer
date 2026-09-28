@@ -1,5 +1,6 @@
 import type { ContextUsage, Theme } from "@earendil-works/pi-coding-agent";
 import type { AttributionRow } from "./request-attribution.js";
+import type { SkillLoadRow } from "./skill-stats.js";
 import type { TabContent } from "./tabbed-overlay.js";
 import { formatTokens } from "./utils.js";
 import { DEFAULT_WHEEL_SCROLL_LINES, parseWheelDelta } from "./mouse.js";
@@ -13,6 +14,7 @@ export interface ContextStats {
 	bashCommandRows: AttributionRow[];
 	unknownInputTokens: number;
 	payloadChars: number;
+	skillRows: SkillLoadRow[];
 }
 
 function usageInput(usage: any): number | undefined {
@@ -79,6 +81,18 @@ export class StatsTabContent implements TabContent {
 
 		lines.push(`  ${th.bold(this.stats.modelName)}`);
 		lines.push(`  ${th.fg("dim", "Per-category values are proportional estimates calibrated to provider totals.")}`);
+		lines.push("");
+		lines.push(`  ${th.fg("accent", "Skills loaded (current branch)")}`);
+		lines.push(`    ${th.fg("dim", "Full SKILL.md only; reads and /skill:name invocations counted separately.")}`);
+		if (this.stats.skillRows.length === 0) {
+			lines.push(`    ${th.fg("dim", "No full skill loads recorded on this branch.")}`);
+		} else {
+			lines.push(`    ${th.fg("dim", "Session: read / command  ·  Current context: read / command")}`);
+			for (const row of this.stats.skillRows) {
+				const current = row.contextReadCount + row.contextCommandCount > 0;
+				lines.push(`    ${current ? th.fg("success", "●") : th.fg("dim", "○")} ${row.name}  ${row.readCount} / ${row.commandCount}  ·  ${row.contextReadCount} / ${row.contextCommandCount}${current ? "" : " (not in context)"}`);
+			}
+		}
 		lines.push("");
 		lines.push(`  ${th.fg("accent", "Last provider request (exact usage)")}`);
 		if (usage) {

@@ -9,6 +9,7 @@ import {
 import { ScrollableTabContent } from "./scrollable-tab-content.js";
 import { allocateInputTokens, classifyProviderPayload, formatProviderPayload, type ProviderRequestSnapshot } from "./request-attribution.js";
 import { StatsTabContent, type ContextStats } from "./stats-tab-content.js";
+import { collectSkillStats } from "./skill-stats.js";
 import { TabbedOverlay } from "./tabbed-overlay.js";
 import { getWheelScrollLines } from "./mouse.js";
 import { formatTokens } from "./utils.js";
@@ -205,6 +206,7 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 				bashCommandRows: attribution.bashCommandRows,
 				unknownInputTokens: attribution.unknownTokens ?? 0,
 				payloadChars,
+				skillRows: collectSkillStats(ctx.sessionManager.getBranch(), context, ctx.getSystemPromptOptions().skills),
 			};
 			const fullText = buildTotalContextText(systemPrompt, toolsText, context, usage, ctx.model);
 			const subtitle = usage?.tokens != null && usage.contextWindow != null
