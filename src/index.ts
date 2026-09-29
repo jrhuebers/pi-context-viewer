@@ -10,6 +10,7 @@ import { ScrollableTabContent } from "./scrollable-tab-content.js";
 import { allocateInputTokens, classifyProviderPayload, formatProviderPayload, type ProviderRequestSnapshot } from "./request-attribution.js";
 import { StatsTabContent, type ContextStats } from "./stats-tab-content.js";
 import { collectSkillStats } from "./skill-stats.js";
+import { renderReplayedSystemPrompt } from "./system-prompt.js";
 import { TabbedOverlay } from "./tabbed-overlay.js";
 import { getWheelScrollLines } from "./mouse.js";
 import { formatTokens } from "./utils.js";
@@ -193,7 +194,10 @@ export default function contextViewerExtension(pi: ExtensionAPI): void {
 			const activeToolDefs = allTools.filter((t) => activeToolNames.includes(t.name));
 			const context = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId());
 			const request = lastRequest;
-			const systemPrompt = providerSystemText(request?.payload, fallbackSystemPrompt);
+			// The idle-session fallback can be the unexpanded SYSTEM.md source; the
+			// branch transcript contains the prompt after before_agent_start edits.
+			const systemPrompt = renderReplayedSystemPrompt(context.messages)
+				?? providerSystemText(request?.payload, fallbackSystemPrompt);
 			const toolsText = providerToolsText(request?.payload, activeToolDefs);
 			const attribution = allocateInputTokens(request?.parts ?? [], request?.usage, usage);
 			const payloadChars = request ? formatProviderPayload(request.payload).length : 0;

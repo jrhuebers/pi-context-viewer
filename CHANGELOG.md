@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Replay the active branch's persisted system prompt in the System and Full tabs, so inline-expanded `@` references remain visible after a turn settles instead of reverting to the raw SYSTEM.md source.
+
 ## 0.1.0 - 2026-09-01
 
 - Forked the original context viewer into `jrhuebers/pi-context-viewer`.
